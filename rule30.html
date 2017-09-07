@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+<meta charset="utf-8">
+<!--
+<script src="https://d3js.org/d3.v4.min.js"></script>
+-->
+<link rel="stylesheet" href="_my_markdown.css" type="text/css">
+<style>
+canvas {
+  padding-bottom: 10px;
+  padding-top: 10px;
+  border: 1px solid lightgray;
+}
+input#initial_input {
+  width: 85%;
+}
+div#preview_initial {
+  border: 1px solid lightgray;
+  min-height: 34pt;
+  padding: 5px;
+  margin: 12pt 0;
+}
+p#expand_initial {
+  font-family: Consolas, 'Lucida Console', monospace;
+  word-wrap: break-word;
+}
+li {
+  word-wrap: break-word;
+}
+</style>
+<title>Rule 30</title>
+</head>
+
+<body>
+<h1>Rule 30</h1>
+
+<p>Wikipedia links:</p>
+<ul>
+  <li><a href="https://en.wikipedia.org/wiki/Elementary_cellular_automaton">
+    Elementary cellular automaton</a></li>
+  <li><a href="https://en.wikipedia.org/wiki/Rule_30">Rule 30</a></li>
+</ul>
+
+<p>Representation of initial row, e.g, the following are equivalent:</p>
+<ul>
+  <li><tt>"0"*50 + "1" + "0"*50</tt></li>
+  <li><tt>"00000000000000000000000000000000000000000000000000100000000000000000000000000000000000000000000000000"</tt></li>
+  <li><tt>00000000000000000000000000000000000000000000000000100000000000000000000000000000000000000000000000000</tt></li>
+</ul>
+
+<p>Input valid string or expression (I'm a poor parser, be gentle):</p>
+<ul>
+  <li>string or evaluated expression should be less than 322 characters long</li>
+  <li>only (gimped versions of) <tt>+</tt> and <tt>*</tt> operators implemented</li>
+</ul>
+
+<form>
+<input id="initial_input" list="my_initial" type="text">
+<datalist id="my_initial">
+		<option value='"0"*160 + "1" + "0"*160'>
+		<option value='"0"*40 + "1"*20 + "0"*40'>
+		<option value='"01"*50 + "0"'>
+		<option value='"010"*33 + "01"'>
+		<option value='"011"*33 + "01"'>
+		<option value='"101"*33 + "10"'>
+</datalist>
+<button type="button" onclick="main()">Submit</button>
+</form>
+
+Initial input:
+<div id="preview_initial">
+<p id="expand_initial"></p>
+</div>
+
+<canvas width="650" height="400"></canvas>
+
+<script>
+var canvas = document.querySelector("canvas"),
+    ctx = canvas.getContext("2d"),
+    width = canvas.width,
+    height = canvas.height,
+    dx, x_offset;
+
+ctx.fillStyle = "grey";
+
+function main() {
+  var init = document.getElementById("initial_input").value;
+  init = parse_initial(init);
+  init = init=="" ? "Cannot parse input" : init;
+  document.getElementById("expand_initial").innerHTML = init;
+  
+  // image clears if we use squares of integer width
+  // x_offset used to center image in canvas
+  dx = Math.min(50, Math.floor(width / init.length));
+  x_offset = Math.floor(0.5*(width - init.length*dx)); 
+  draw(init);
+}
+
+/*********************************************
+ * Parsing initial condition from form input *
+ *********************************************/
+function parse_initial(s) {
+  var s_out;
+  s = s.replace(/ /g, "");
+  if (check_allowedchars(s)) {
+    if (check_is_zero_one(s)) {
+      s_out = s;
+    } else if (check_zero_one_str(s)) {
+      s_out = s.slice(1, s.length - 1);
+    } else {
+      var sum_up = s.split("+");
+      for (var i = 0; i < sum_up.length; ++i) {
+        var sum_up_s = sum_up[i];
+        if (check_is_multip(sum_up_s)) {
+          var multi = sum_up_s.split("*");
+          if (isInteger(+multi[0])) {
+            sum_up[i] = string_on_repeat(multi[1].replace(/['"]/g, ""), +multi[0]);
+          } else {
+            sum_up[i] = string_on_repeat(multi[0].replace(/['"]/g, ""), +multi[1]);
+          }
+        } else if (!check_zero_one_str(sum_up_s)) {
+          s_out = "";
+          break;
+        }
+      }
+      if (s_out!="") {
+        s_out = "";
+        for (var i = 0; i < sum_up.length; ++i) {
+          s_out += sum_up[i].replace(/['"]/g, "");
+        }
+      }
+    }
+  } else {
+    s_out = "";
+  }
+  if (s_out.length > 321) s_out = "";
+  return s_out;
+}
+
+// checks used in parse_initial
+function check_allowedchars(s) {
+  return s.replace(/[0-9+*'"]/g, "").length==0;
+}
+function check_is_str(s) {
+  return (s[0]=='"' && s[s.length - 1]=='"') ||
+           (s[0]=="'" && s[s.length - 1]=="'");
+}
+function check_is_zero_one(s) {
+  return(s.replace(/[0-1]/g, "").length==0);
+}
+function check_zero_one_str(s) {
+  return check_is_str(s) &&
+           check_is_zero_one(s.slice(1, s.length - 1));
+}
+function check_is_multip(s) {
+  var s_split = s.split("*");
+  if (s_split.length==2) {
+    return (isInteger(+s_split[0]) && check_zero_one_str(s_split[1])) ||
+             (check_zero_one_str(s_split[0]) && isInteger(+s_split[1]));
+  } else {
+    return false;
+  }
+}
+
+function isInteger(x) {
+  return (x ^ 0) === x;
+}
+
+/********************************
+ * Cellular automata -- rule 30 *
+ ********************************/
+function draw(s) {
+  ctx.clearRect(0, 0, width, height);
+  var number_of_rows = Math.floor(height / dx);
+  drawRow(s, 0);
+  for (var i = 1; i < number_of_rows; ++i) {
+    s = rule30(s);
+    drawRow(s, i);
+  }
+}
+
+function drawRow(s, row_number) {
+  var indicies = indexOfAll(s, "1");
+  ctx.beginPath();
+  for (var i = 0; i < indicies.length; ++i) {
+    ctx.rect(indicies[i] * dx + x_offset, row_number * dx, dx - 1, dx - 1);
+  }
+  ctx.fill();
+  ctx.closePath();
+}
+
+function rule30(s) {
+  var array_new = isOne_rule30("0" + s.slice(0, 2));
+  for (var i = 1; i < s.length - 1; ++i) {
+    array_new += isOne_rule30(s.slice(i - 1, i + 2));
+  }
+  array_new += isOne_rule30(s.slice(i - 1, i + 1) + "0");
+  return array_new;
+}
+
+function isOne(s, rule) {
+  // for elementary cellular automaton
+  // returns next iteration of grid given current value and neighbours
+  return(rule.indexOf(s) > -1 ? "1" : "0");
+}
+
+function isOne_rule30(s) {
+  return(isOne(s, ["100", "011", "010", "001"]));
+  // zeros ["111", "110", "101", "000"]
+}
+
+function indexOfAll(a, e) {
+  var indicies = [];
+  var idx = a.indexOf(e);
+  while (idx!=-1) {
+    indicies.push(idx);
+    idx = a.indexOf(e, idx + 1);
+  }
+  return(indicies);
+}
+
+// string arithmetic
+function string_on_repeat(s, n) {
+  var s_out = "";
+  for (var i = 0; i < n; ++i) s_out += s;
+  return s_out ;
+}
+function ones(n) { return string_on_repeat("1", n); }
+function zeros(n) { return string_on_repeat("0", n); }
+
+</script>
+
+</body>
+
+</html>

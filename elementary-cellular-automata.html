@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+<meta charset="utf-8">
+<!--
+<script src="https://d3js.org/d3.v4.min.js"></script>
+-->
+<link rel="stylesheet" href="_my_markdown.css" type="text/css">
+<style>
+canvas {
+  margin: 15px 0 5px;
+  padding-bottom: 10px;
+  padding-top: 10px;
+  border: 1px solid lightgrey;
+}
+form {
+  margin: 15px 0 5px;
+}
+input#initial_input {
+  width: 85%;
+}
+div#preview {
+  font-family: Consolas, 'Lucida Console', monospace;
+  border: 1px solid lightgrey;
+  min-height: 34pt;
+  padding: 5px;
+  margin: 5px 0 15px;
+}
+p#preview_initial {
+  word-wrap: break-word;
+}
+</style>
+<title>Elementary cellular automata</title>
+</head>
+
+<body>
+<h1>Elementary cellular automata</h1>
+
+<p>Wikipedia links:</p>
+<ul>
+  <li><a href="https://en.wikipedia.org/wiki/Elementary_cellular_automaton">
+    Elementary cellular automaton</a></li>
+  <li><a href="https://en.wikipedia.org/wiki/Rule_30">Rule 30</a></li>
+</ul>
+
+<form>
+<label>Rule No. (any number between 0 and 255, inclusive):</label><br>
+<input id="rule_num" list="rule_suggest" type="text">
+<datalist id="rule_suggest">
+	<option value="30">
+	<option value="90">
+	<option value="105">
+	<option value="110">
+	<option value="124">
+	<option value="137">
+</datalist>
+<button type="button" onclick="set_wolfram_code()">Submit</button><br>
+</form>
+
+<canvas id="rule_canvas" width="650" height="45"></canvas>
+
+<form>
+<label>Initial row (any 0-1 string of length less than 322; expressions using
+ (gimped) "+" and "*" operators are allowed; I'm a poor parser, be gentle):
+</label><br>
+<input id="initial_input" list="initial_suggest" type="text">
+<datalist id="initial_suggest">
+    <option value="Generate random initial row">
+    <option value="Generate longer random initial row">
+		<option value='"0"*160 + "1" + "0"*160'>
+		<option value='"0"*40 + "1"*20 + "0"*40'>
+		<option value='"01"*50 + "0"'>
+		<option value='"010"*33 + "01"'>
+		<option value='"011"*33 + "01"'>
+		<option value='"101"*33 + "10"'>
+</datalist>
+<button type="button" onclick="main()">Submit</button>
+</form>
+
+<div id="preview">
+<p id="preview_initial">Input initial row.</p>
+</div>
+
+<h2 id="rule_heading"> </h2>
+<canvas id="main_canvas" width="650" height="400"></canvas>
+
+<script>
+var canvas = document.getElementById("main_canvas"),
+    ctx = canvas.getContext("2d"),
+    width = canvas.width,
+    height = canvas.height,
+    dx, x_offset, production;
+ctx.fillStyle = "grey";
+    
+var rcanvas = document.getElementById("rule_canvas"),
+      rctx = rcanvas.getContext("2d"),
+      rwidth = rcanvas.width,
+      rheight = rcanvas.height;
+rctx.font = "12px Consolas, 'Lucida Console', monospace";
+rctx.fillText("Input rule number.", 5, 10);
+
+function set_wolfram_code() {
+  production = null;
+  var rule_num = document.getElementById("rule_num").value;
+  if (rule_num!="" && isInteger(+rule_num) && +rule_num > -1 && +rule_num < 256) {
+    document.getElementById("rule_heading").innerHTML = "Rule " + rule_num.toString();
+    document.getElementById("preview_initial").innerHTML = "Input initial row.";
+    ctx.clearRect(0, 0, width, height);
+    production = wolfram_code(+rule_num);
+    illustrate_rule();
+  }
+  else {
+    rctx.clearRect(0, 0, rwidth, rheight);
+    rctx.strokeStyle = "black";
+    rctx.fillText("Invalid rule number -- " +
+                    "choose a number between 0 and 255, inclusive.", 5, 10);
+  }
+}
+
+function main() {
+  if (production) {
+    var init = document.getElementById("initial_input").value;
+    init = parse_initial(init);
+    init = init=="" ? "Cannot parse input." : init;
+    document.getElementById("preview_initial").innerHTML = init;
+    
+    // image clears if we use squares of integer width
+    // x_offset used to center image in canvas
+    dx = Math.min(50, Math.floor(width / init.length));
+    x_offset = Math.floor(0.5*(width - init.length*dx)); 
+    draw(init, production);
+  }
+}
+
+function wolfram_code(n) {
+  // Given number, n, between 0 and 255, inclusive, return the production rule
+  var binary_seq = ["111", "110", "101", "100", "011", "010", "001", "000"],
+      n_str = padStart(n.toString(2), 8, "0"),
+      idx = indexOfAll(n_str, "1"),
+      rule = [];
+  while (idx.length) { rule.push(binary_seq[idx.pop()]); }
+  return rule;
+}
+
+function illustrate_rule() {
+  rctx.fillStyle = "grey";
+  rctx.strokeStyle = "grey";
+  rctx.clearRect(0, 0, rwidth, rheight);
+  var binary_seq = ["111", "110", "101", "100", "011", "010", "001", "000"],
+      rdx = Math.floor(rwidth / 31),
+      rx_offset = Math.floor(0.5*(rwidth - 31*rdx));
+  for (var i = 0; i < binary_seq.length; ++i) {
+    var seq = binary_seq[i];
+    for (var j = 0; j < 3; ++j) {
+      rctx.strokeRect((4*i + j)*rdx + rx_offset, 0, rdx - 2, rdx - 2);
+      if (seq[j]=="1")
+        rctx.fillRect((4*i + j)*rdx + rx_offset, 0, rdx - 2, rdx - 2);
+      if (j==1) {
+        rctx.strokeRect((4*i + j)*rdx + rx_offset, rdx, rdx - 2, rdx - 2);
+        if (production.indexOf(seq) > -1)
+          rctx.fillRect((4*i + j)*rdx + rx_offset, rdx, rdx - 2, rdx - 2);
+      }
+    }
+  }
+}
+
+/*********************************************
+ * Parsing initial condition from form input *
+ *********************************************/
+function parse_initial(s) {
+  var s_out;
+  if (s=="Generate random initial row") {
+    s_out = ""
+    for (var i = 0; i < 101; ++i) s_out = s_out + (Math.random() < 0.5 ? "0" : "1");
+    return s_out;
+  } else if (s=="Generate longer random initial row") {
+    s_out = ""
+    for (var i = 0; i < 322; ++i) s_out = s_out + (Math.random() < 0.5 ? "0" : "1");
+    return s_out;
+  }
+  s = s.replace(/ /g, "");
+  if (check_allowedchars(s)) {
+    if (check_is_zero_one(s)) {
+      s_out = s;
+    } else if (check_zero_one_str(s)) {
+      s_out = s.slice(1, s.length - 1);
+    } else {
+      var sum_up = s.split("+");
+      for (var i = 0; i < sum_up.length; ++i) {
+        var sum_up_s = sum_up[i];
+        if (check_is_multip(sum_up_s)) {
+          var multi = sum_up_s.split("*");
+          if (isInteger(+multi[0])) {
+            sum_up[i] = string_on_repeat(multi[1].replace(/['"]/g, ""), +multi[0]);
+          } else {
+            sum_up[i] = string_on_repeat(multi[0].replace(/['"]/g, ""), +multi[1]);
+          }
+        } else if (!check_zero_one_str(sum_up_s)) {
+          s_out = "";
+          break;
+        }
+      }
+      if (s_out!="") {
+        s_out = "";
+        for (var i = 0; i < sum_up.length; ++i) {
+          s_out += sum_up[i].replace(/['"]/g, "");
+        }
+      }
+    }
+  } else {
+    s_out = "";
+  }
+  if (s_out.length > 321) s_out = "";
+  return s_out;
+}
+
+// checks used in parse_initial
+function check_allowedchars(s) {
+  return s.replace(/[0-9+*'"]/g, "").length==0;
+}
+function check_is_str(s) {
+  return (s[0]=='"' && s[s.length - 1]=='"') ||
+           (s[0]=="'" && s[s.length - 1]=="'");
+}
+function check_is_zero_one(s) {
+  return(s.replace(/[0-1]/g, "").length==0);
+}
+function check_zero_one_str(s) {
+  return check_is_str(s) &&
+           check_is_zero_one(s.slice(1, s.length - 1));
+}
+function check_is_multip(s) {
+  var s_split = s.split("*");
+  if (s_split.length==2) {
+    return (isInteger(+s_split[0]) && check_zero_one_str(s_split[1])) ||
+             (check_zero_one_str(s_split[0]) && isInteger(+s_split[1]));
+  } else {
+    return false;
+  }
+}
+
+function isInteger(x) {
+  return (x ^ 0) === x;
+}
+
+/*********************
+ * Cellular automata *
+ *********************/
+function draw(s, prod) {
+  ctx.clearRect(0, 0, width, height);
+  var number_of_rows = Math.floor(height / dx);
+  drawRow(s, 0);
+  for (var i = 1; i < number_of_rows; ++i) {
+    s = rule(s, prod);
+    drawRow(s, i);
+  }
+}
+
+function drawRow(s, row_number) {
+  ctx.beginPath();
+  for (var i = 0; i < s.length; ++i) {
+    if (s[i]=="1") ctx.rect(i*dx + x_offset, row_number * dx, dx - 1, dx - 1)
+  }
+  ctx.fill();
+  ctx.closePath();
+}
+
+function rule(s, prod) {
+  var array_new = isOne("0" + s.slice(0, 2), prod);
+  for (var i = 1; i < s.length - 1; ++i) {
+    array_new += isOne(s.slice(i - 1, i + 2), prod);
+  }
+  array_new += isOne(s.slice(i - 1, i + 1) + "0", prod);
+  return array_new;
+}
+
+function isOne(s, prod) {
+  // for elementary cellular automaton
+  // returns next iteration of grid given current value and neighbours and a
+  // production array
+  return(prod.indexOf(s) > -1 ? "1" : "0");
+}
+
+/***********
+ * Utility *
+ ***********/
+function indexOfAll(a, e) {
+  var indicies = [];
+  var idx = a.indexOf(e);
+  while (idx!=-1) {
+    indicies.push(idx);
+    idx = a.indexOf(e, idx + 1);
+  }
+  return(indicies);
+}
+
+function padStart(s, l, c) {
+  while (s.length < l) { s = c + s; }
+  return s;
+}
+
+function isInteger(x) {
+  return (x ^ 0) === x;
+}
+
+// string arithmetic
+function string_on_repeat(s, n) {
+  var s_out = "";
+  for (var i = 0; i < n; ++i) s_out += s;
+  return s_out ;
+}
+function ones(n) { return string_on_repeat("1", n); }
+function zeros(n) { return string_on_repeat("0", n); }
+
+</script>
+</body>
+</html>

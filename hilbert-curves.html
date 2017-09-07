@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+<meta charset="utf-8">
+<script src="https://d3js.org/d3.v4.min.js"></script>
+<link rel="stylesheet" href="_my_markdown.css" type="text/css">
+<style>
+canvas {
+  padding-bottom: 10px;
+  padding-top: 10px;
+}
+</style>
+<title>Hilbert curves</title>
+</head>
+
+<body>
+<h1>Hilbert curves</h1>
+
+<p>Wikipedia links:</p>
+<ul>
+  <li><a href="https://en.wikipedia.org/wiki/Hilbert_curve">Hilbert curve</a></li>
+  <li><a href="https://en.wikipedia.org/wiki/L-system">Lindenmeyer system</a></li>
+</ul>
+
+<form>
+<label>Iteration:</label>
+<select id="iter">
+		<option value="1" selected="selected">1</option>
+		<option value="2">2</option>
+		<option value="3">3</option>
+		<option value="4">4</option>
+		<option value="5">5</option>
+		<option value="6">6</option>
+		<option value="7">7</option>
+		<option value="8">8</option>
+</select>
+</form>
+
+<canvas id="canvas" width="512" height="512"></canvas>
+
+<script>
+var canvas = document.getElementById('canvas'),
+    ctx = canvas.getContext('2d'),
+    width = canvas.width,
+    height = canvas.height,
+    direction, dx, x, y;
+
+ctx.lineWidth = 1;
+ctx.lineJoin = "round";
+ctx.lineCap = "round";
+ctx.strokeStyle = "black";
+hilbert_curve(1);
+
+d3.select("#iter")
+    .on("change", function() {
+      hilbert_curve(+this.value);
+    });
+
+// Hilbert curves drawn using the Lidenmayer system
+// A -> -BF+AFA+FB-
+// B -> +AF-BFB-FA+
+function hilbert_curve(n) {
+  ctx.clearRect(0, 0, width, height);
+  dx = Math.floor(width / mersenne_prime(n)), direction = "right";
+  x = 0, y = 0;
+  ctx.beginPath();
+  ctx.moveTo(x, y);
+  expand("A", 1, n);
+  ctx.stroke();
+}
+
+function expand(symbol, depth, target_depth) {
+  var production = {A: "-BF+AFA+FB-", B: "+AF-BFB-FA+"};
+  var str = production[symbol];
+  
+  for (var i = 0; i < str.length; ++i) {
+    //console.log("direction: ", direction);
+    var char = str[i];
+    //if(char!="A" && char!="B")
+    //  console.log(char);
+    if (char=="+" || char=="-" || char=="F")
+      draw(char);
+    else if (depth!=target_depth)
+      expand(char, depth + 1, target_depth);
+  }
+}
+
+function forward() {
+  var f = {
+    "up": [0, 1],
+    "down": [0, -1],
+    "left": [-1, 0],
+    "right": [1, 0]
+  }
+  x += f[direction][0] * dx;
+  y += f[direction][1] * dx;
+  ctx.lineTo(x, y);
+}
+
+function rotate_clockwise() {
+  var d = {"left": "up", "up": "right", "right": "down", "down": "left"};
+  direction = d[direction];
+}
+
+function rotate_anticlockwise() {
+  var d = {"left": "down", "down": "right", "right": "up", "up": "left"};
+  direction = d[direction];
+}
+
+function rotate(sign) {
+  if (sign=="+")
+    rotate_clockwise();
+  else if (sign=="-")
+    rotate_anticlockwise();
+}
+
+function draw(symbol) {
+  if (symbol=="+" || symbol=="-")
+    rotate(symbol);
+  else if (symbol=="F")
+    forward();
+}
+
+//function expandStr(s) {
+//  var s_new = "";
+//  var production = {A: "-BF+AFA+FB-", B: "+AF-BFB-FA+"};
+//  for (var i = 0; i < s.length; ++i) {
+//    var char = s[i];
+//    if (char!="A" && char!="B")
+//      s_new += char;
+//    else
+//      s_new += production[char];
+//  }
+//  return(s_new);
+//}
+
+function mersenne_prime(n) {
+  return(Math.pow(2, n) - 1);
+}
+</script>
+
+</body>
+</html>
