@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+<meta charset="utf-8">
+<!--
+<script src="https://d3js.org/d3.v4.min.js"></script>
+-->
+<link rel="stylesheet" href="_my_markdown.css" type="text/css">
+<style>
+canvas {
+  margin-top: 15px;
+  margin-bottom: 5px;
+  margin-left: auto;
+  margin-right: auto;
+  padding: 5px;
+  display: block;
+  border: 1px solid lightgrey;
+}
+</style>
+<title>Conway's Game of Life</title>
+</head>
+
+<body>
+<h1>Conway's Game of Life</h1>
+
+<p>Wikipedia links:</p>
+<ul>
+  <li><a href="https://en.wikipedia.org/wiki/Conway%27s_Game_of_Life">
+    Conway's Game of Life</a></li>
+</ul>
+
+<form name="boundaryConditions">Boundary condition:
+  <input type="radio" id="bc1" name="bc" value="Periodic" checked>
+  <label for="bc1">Periodic</label>
+  <input type="radio" id="bc2" name="bc" value="Non-periodic">
+  <label for="bc2">Non-periodic</label>
+</form>
+
+<form name="initialConditions">Initial condition:
+  <select name="ic">
+    <option value="0">Random intitial condition</option>
+    <option value="1">Pulsar</option>
+    <option value="2">Pentadecathlon</option>
+    <option value="3">Glider</option>
+    <option value="4">Lightweight spaceship</option>
+    <option value="5">Gopser's glider gun</option>
+    <option value="6">R-pentomino</option>
+    <option value="7">Diehard</option>
+  </select>
+</form>
+
+<canvas id="canvas" width="650" height="400"></canvas>
+
+<script>
+var canvas = document.getElementById("canvas"),
+    ctx = canvas.getContext("2d"),
+    width = canvas.width,
+    height = canvas.height,
+    boundaryCondition = "Periodic",
+    dx, intervalID;
+
+// boundary condition
+var bcform = document.boundaryConditions.bc;
+function bclistener() {
+  if (this.value!=boundaryCondition) boundaryCondition = this.value;
+}
+for (var i = 0; i < bcform.length; ++i) {
+  bcform[i].addEventListener("click", bclistener);
+}
+
+// initial condition
+var icform = document.initialConditions.ic;
+function iclistener() {
+  bcform[0].click();
+  clearInterval(intervalID);
+  init(initialConditions[this.value]());
+}
+icform.addEventListener("change", iclistener);
+
+function init(grid) {
+  var g_width = grid[0].length,
+      g_height = grid.length,
+      sum = 0, iter = 0, test;
+  dx = Math.floor(width / g_width);
+  canvas.width = dx*g_width;
+  canvas.height = dx*g_height;
+  width = canvas.width;
+  height = canvas.height;
+  ctx.fillStyle = "grey";
+  ctx.font = "40px Consolas, 'Lucida Console', monospace";
+  ctx.textAlign = "center";
+  ctx.txtBaseline = "middle"
+  
+  renderGrid(grid);
+  intervalID = setInterval(function() {
+    grid = gameOfLife_iter(grid);
+    renderGrid(grid); }, 250);
+}
+
+function renderGrid(grid) {
+  var g_width = grid[0].length,
+      g_height = grid.length;
+  
+  ctx.clearRect(0, 0, width, height);
+  if (sumGrid(grid) == 0) {
+    ctx.fillText("Game Over", width/2, height/2);
+  } else {
+    ctx.beginPath();
+    for (var i = 0; i < g_height; ++i) {
+      for (var j = 0; j < g_width; ++j) {
+        if (grid[i][j]) ctx.rect(j*dx, i*dx, dx - 1, dx - 1);
+      }
+    }
+    ctx.fill();
+    ctx.closePath();
+  }
+}
+
+var initialConditions = [
+  function() { return makeGrid(120, 60, randomArray); }, // random initial condition
+  function() { return stringToArray(                     // pulsar
+    string_on_repeat(zeros(120), 23) +
+    zeros(53) + "0011100011100" + zeros(54) +
+    zeros(120) +
+    string_on_repeat(zeros(53) + "1000010100001" + zeros(54), 3) +
+    zeros(53) + "0011100011100" + zeros(54) +
+    zeros(120) +
+    zeros(53) + "0011100011100" + zeros(54) +
+    string_on_repeat(zeros(53) + "1000010100001" + zeros(54), 3) +
+    zeros(120) +
+    zeros(53) + "0011100011100" + zeros(54) +
+    string_on_repeat(zeros(120), 24), 60, 120); },
+  function() { return stringToArray(                     // pentadecathlon  
+    string_on_repeat(zeros(120), 26) +
+    zeros(58) + "111" + zeros(59) +
+    zeros(58) + "101" + zeros(59) +
+    string_on_repeat(zeros(58) + "111" + zeros(59), 4) +
+    zeros(58) + "101" + zeros(59) +
+    zeros(58) + "111" + zeros(59) +
+    string_on_repeat(zeros(120), 26), 60, 120); },
+  function() { return stringToArray(                     // glider
+    string_on_repeat(zeros(120), 28) +
+    zeros(58) + "100" + zeros(59) +
+    zeros(58) + "011" + zeros(59) +
+    zeros(58) + "110" + zeros(59) +
+    string_on_repeat(zeros(120), 29), 60, 120); },
+  function() { return stringToArray(                     // lightweight spaceship
+    string_on_repeat(zeros(120), 28) +
+    zeros(57) + "10010" + zeros(58) +
+    zeros(57) + "00001" + zeros(58) +
+    zeros(57) + "10001" + zeros(58) +
+    zeros(57) + "01111" + zeros(58) +
+    string_on_repeat(zeros(120), 28), 60, 120); },
+  function() { return stringToArray(                    // Gosper glider gun
+    string_on_repeat(zeros(120), 6) +
+    zeros(6) + "000000000000000000000000100000000000" + zeros(78) +
+    zeros(6) + "000000000000000000000010100000000000" + zeros(78) +
+    zeros(6) + "000000000000110000001100000000000011" + zeros(78) +
+    zeros(6) + "000000000001000100001100000000000011" + zeros(78) +
+    zeros(6) + "110000000010000010001100000000000000" + zeros(78) +
+    zeros(6) + "110000000010001011000010100000000000" + zeros(78) +
+    zeros(6) + "000000000010000010000000100000000000" + zeros(78) +
+    zeros(6) + "000000000001000100000000000000000000" + zeros(78) +
+    zeros(6) + "000000000000110000000000000000000000" + zeros(78) +
+    string_on_repeat(zeros(120), 45), 60, 120); },
+  function() { return stringToArray(                    // R-pentomino
+    string_on_repeat(zeros(120), 28) +
+    zeros(58) + "011" + zeros(59) +
+    zeros(58) + "110" + zeros(59) +
+    zeros(58) + "010" + zeros(59) +
+    string_on_repeat(zeros(120), 29), 60, 120); },
+  function() { return stringToArray(                    // Diehard
+    string_on_repeat(zeros(120), 28) +
+    zeros(56) + "00000010" + zeros(56) +
+    zeros(56) + "11000000" + zeros(56) +
+    zeros(56) + "01000111" + zeros(56) +
+    string_on_repeat(zeros(120), 29), 60, 120); }
+];
+
+function icchange(ic) {
+  console.log("test");
+  console.log(ic);
+  console.log("test");
+}
+
+function makeGrid(w, l, fun) {
+  var grid = zeroArray(l);
+  grid = grid.map(function (x) { return fun(w); });
+  return grid;
+}
+
+function zeroArray(n) {
+  var array = [];
+  for (var i = 0; i < n; ++i) array.push(0);
+  return array;
+}
+
+function randomArray(n) {
+  var array = [];
+  for (var i = 0; i < n; ++i) {
+    array.push(Math.random() < 0.91 ? 0 : 1);
+  }
+  return array;
+}
+
+function isAlive(i, j, grid, boundaryCondition) {
+  var g_width = grid[1].length,
+      g_height = grid.length,
+      sum = 0;
+  for (var a = -1; a < 2; ++a) {
+    for (var b = -1; b < 2; ++b) {
+      if (boundaryCondition=="Periodic") {
+        sum += grid[(i + a + g_height) % g_height][(j + b + g_width) % g_width];
+      } else if (boundaryCondition=="Non-periodic") {
+        var x = j + a,
+            y = i + b;
+        if (x > -1 && x < g_width && y > -1 && y < g_height) sum += grid[y][x];
+      }
+    }
+  }
+  if (sum==3 || (sum==4 & grid[i][j]==1)) return 1;
+  return 0;
+}
+
+function gameOfLife_iter(current_grid) {
+  var g_width = current_grid[0].length,
+      g_height = current_grid.length;
+      next_grid = current_grid.map(function (x) { return x.slice() });
+  for (var i = 0; i < g_height; ++i) {
+    for (var j = 0; j < g_width; ++j) {
+      next_grid[i][j] = isAlive(i, j, current_grid, boundaryCondition);
+    }
+  }
+  return next_grid;
+}
+
+function sumGrid(grid) {
+  var g_width = grid[1].length,
+      g_height = grid.length,
+      sum = 0;
+  for (var i = 0; i < g_height; ++i) {
+    for (var j = 0; j < g_width; ++j) {
+      sum += grid[i][j];
+    }
+  }
+  return sum;
+}
+
+function stringToArray(s, nrow, ncol) {
+  var a = [];
+  for (var i = 0; i < nrow; ++i) {
+    a.push(s.slice(i*ncol, (i + 1)*ncol));
+  }
+  for (var i = 0; i < a.length; ++i) {
+    var ai = a[i],
+        ai_new = [];
+    for (var j = 0; j < ai.length; ++j) {
+      ai_new.push(+ai[j]);
+    }
+    a[i] = ai_new;
+  }
+  return a;
+}
+
+// string arithmetic
+function string_on_repeat(s, n) {
+  var s_out = "";
+  for (var i = 0; i < n; ++i) s_out += s;
+  return s_out ;
+}
+function ones(n) { return string_on_repeat("1", n); }
+function zeros(n) { return string_on_repeat("0", n); }
+
+function renderGridConsole(grid) {
+  console.log("--")
+  for (var i = 0; i < grid.length; ++i) {
+    console.log(grid[i].toString().replace(/,/g, ""));
+  }
+  console.log("--")
+}
+//
+// Patterns
+//var test_zero = makeGrid(6, 6, zeroArray);
+//renderGridConsole(test_zero);
+//
+//// block
+//test = test_zero.map(function(x) { return x.slice() });
+//test[1][1] = 1;
+//test[1][2] = 1;
+//test[2][1] = 1;
+//test[2][2] = 1;
+//renderGridConsole(test);
+//renderGridConsole(gameOfLife_iter(test));
+//renderGridConsole(gameOfLife_iter(gameOfLife_iter(test)));
+//
+//// beehive
+//test = test_zero.map(function(x) { return x.slice() });
+//test[1][2] = 1;
+//test[1][3] = 1;
+//test[2][1] = 1;
+//test[2][4] = 1;
+//test[3][2] = 1;
+//test[3][3] = 1;
+//renderGridConsole(test);
+//renderGridConsole(gameOfLife_iter(test));
+//renderGridConsole(gameOfLife_iter(gameOfLife_iter(test)));
+//
+//// blinker (period 2)
+//test = test_zero.map(function(x) { return x.slice() });
+//test[2][1] = 1;
+//test[2][2] = 1;
+//test[2][3] = 1;
+//renderGridConsole(test);
+//renderGridConsole(gameOfLife_iter(test));
+//renderGridConsole(gameOfLife_iter(gameOfLife_iter(test)));
+//
+// toad (period 2)
+//test = test_zero.map(function(x) { return x.slice() });
+//test[2][1] = 1;
+//test[2][2] = 1;
+//test[2][3] = 1;
+//test[3][2] = 1;
+//test[3][3] = 1;
+//test[3][4] = 1;
+//renderGridConsole(test);
+//renderGridConsole(gameOfLife_iter(test));
+//renderGridConsole(gameOfLife_iter(gameOfLife_iter(test)));
+//renderGrid(test);
+//animateCanvas(test);
+//
+// Random n x n intital condition
+
+init(initialConditions[0]());
+</script>
+
+</body>
+
+</html>
