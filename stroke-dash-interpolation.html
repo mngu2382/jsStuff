@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+<meta charset="utf-8">
+<script src="https://d3js.org/d3.v4.min.js"></script>
+<link rel="stylesheet" href="_my_markdown.css" type="text/css">
+<style>
+canvas, svg {
+  margin-top: 15px;
+  margin-bottom: 5px;
+  margin-left: auto;
+  margin-right: auto;
+  padding: 5px;
+  display: block;
+  border: 1px solid lightgrey;
+}
+
+path {
+  fill: none;
+  stroke: #000;
+  stroke-width: 3px;
+}
+
+circle {
+  fill: steelblue;
+  stroke: #fff;
+  stroke-width: 3px;
+}
+
+</style>
+<title>Stroke dash interpolation</title>
+</head>
+
+<body width=960px>
+<h1>Stroke dash interpolation</h1>
+
+<p>D3.js v4 of <a href="https://bl.ocks.org/mbostock/5649592">this</a>.
+(Can't seem to extactlt reproduce curve.)</p>
+
+<script>
+var points = [
+  [480, 200],
+  [580, 400],
+  [680, 100],
+  [780, 300],
+  [180, 300],
+  [280, 100],
+  [380, 400]
+];
+
+var svg = d3.select("body").append("svg")
+    .datum(points)
+    .attr("width", 960)
+    .attr("height", 500);
+
+var line = d3.line()
+    .curve(d3.curveCardinalClosed.tension(0));
+
+svg.append("path")
+    .style("stroke", "#ddd")
+    .style("stroke-dasharray", "4,4")
+    .attr("d", line);
+
+svg.selectAll("circle")
+    .data(points)
+  .enter().append("circle")
+    .attr("r", 4)
+    .attr("transform", function(d) { return "translate(" + d + ")"; });
+
+svg.append("path")
+    .attr("d", line)
+  .transition()
+    .duration(7500)
+    .attrTween("stroke-dasharray", tweenDash)
+    .on("end", function repeat() {
+      d3.select(this)
+        .transition()
+          .duration(7500)
+          .attrTween("stroke-dasharray", tweenDash)
+          .on("end", repeat);
+    });
+
+function tweenDash() {
+  var l = this.getTotalLength(),
+      i = d3.interpolateString("0," + l, l + "," + l);
+  return function(t) { return i(t); };
+}
+
+</script>
+
+</body>
+
+</html>
